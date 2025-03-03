@@ -40,13 +40,20 @@ export default function HostPage() {
     const code = generateRandomCode();
     setRoomCode(code);
     
+    // Only initialize socket on client side
+    if (typeof window === 'undefined') return;
+    
+    // Get the base URL for the API
+    const baseUrl = window.location.origin;
+    
     // Initialize socket connection
-    const socket = io("/api/socket", {
+    const socket = io(baseUrl, {
       path: "/api/socket",
       autoConnect: true,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: 10,
       reconnectionDelay: 1000,
-      timeout: 20000,
+      timeout: 30000,
+      transports: ['polling', 'websocket'],
     });
     
     socketRef.current = socket;
@@ -85,17 +92,45 @@ export default function HostPage() {
   
   const startStreaming = async () => {
     try {
-      // Request audio capture permission
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        audio: true,
-        video: false
-      });
+      // Check if browser supports required audio APIs
+      if (!navigator.mediaDevices) {
+        throw new Error("Your browser doesn't support audio input. Please try a different browser like Chrome or Firefox.");
+      }
+      
+      // Try getUserMedia first (microphone)
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          },
+          video: false
+        });
+      } catch (micError) {
+        console.log("Microphone access failed, trying getDisplayMedia", micError);
+        // Fall back to getDisplayMedia (system audio)
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          audio: true,
+          video: false
+        });
+      }
+      
+      if (!stream || !stream.getAudioTracks().length) {
+        throw new Error("No audio track available. Please check your audio settings.");
+      }
       
       mediaStreamRef.current = stream;
       setAudioPermission(true);
       
       // Set up Web Audio API
-      const audioContext = new AudioContext();
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) {
+        throw new Error("Your browser doesn't support AudioContext. Please try a different browser.");
+      }
+      
+      const audioContext = new AudioContextClass();
       audioContextRef.current = audioContext;
       
       const sourceNode = audioContext.createMediaStreamSource(stream);
@@ -120,13 +155,13 @@ export default function HostPage() {
       stream.getAudioTracks()[0].onended = () => {
         stopStreaming();
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error accessing audio:", error);
       setAudioPermission(false);
       toast({
         variant: "destructive",
-        title: "Permission denied",
-        description: "Audio capture permission is required for streaming",
+        title: "Audio Error",
+        description: error.message || "Audio capture permission is required for streaming",
       });
     }
   };

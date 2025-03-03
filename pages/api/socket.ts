@@ -41,11 +41,16 @@ export default function SocketHandler(req: NextApiRequest, res: NextApiResponse)
     addTrailingSlash: false,
     cors: {
       origin: "*",
-      methods: ["GET", "POST"]
+      methods: ["GET", "POST"],
+      credentials: true
     },
-    transports: ['websocket', 'polling'],
-    // Add this to help with reconnections in serverless environment
+    transports: ['polling', 'websocket'], // Put polling first for better compatibility
+    // Add these settings to help with Vercel's serverless environment
     pingTimeout: 60000,
+    pingInterval: 25000,
+    upgradeTimeout: 10000,
+    allowEIO3: true,
+    maxHttpBufferSize: 1e8, // Increase buffer size for audio data
   });
   
   (res.socket as SocketWithIO).server.io = io;

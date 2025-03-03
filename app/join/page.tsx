@@ -40,13 +40,17 @@ export default function JoinPage() {
       return; // Exit early if running on server
     }
     
+    // Get the base URL for the API
+    const baseUrl = window.location.origin;
+    
     // Initialize socket connection
-    const socket = io("/api/socket", {
+    const socket = io(baseUrl, {
       path: "/api/socket",
       autoConnect: true,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: 10,
       reconnectionDelay: 1000,
-      timeout: 20000,
+      timeout: 30000,
+      transports: ['polling', 'websocket'],
     });
     
     socketRef.current = socket;
